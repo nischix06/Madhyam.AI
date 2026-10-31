@@ -1,11 +1,5 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI: string = process.env.MONGODB_URI ?? '';
-
-if (!MONGODB_URI) {
-    throw new Error('Missing MONGODB_URI in environment variables.');
-}
-
 type MongooseCache = {
     conn: typeof mongoose | null;
     promise: Promise<typeof mongoose> | null;
@@ -22,6 +16,12 @@ if (!global.mongooseCache) {
 }
 
 export async function connectDB(): Promise<typeof mongoose> {
+    // Validate only when a request needs the database, not during module imports.
+    const MONGODB_URI = process.env.MONGODB_URI;
+    if (!MONGODB_URI) {
+        throw new Error('Missing MONGODB_URI. Set it in Netlify environment variables or .env.local for local development.');
+    }
+
     if (cached.conn) {
         return cached.conn;
     }
@@ -32,6 +32,11 @@ export async function connectDB(): Promise<typeof mongoose> {
         });
     }
 
-    cached.conn = await cached.promise;
+    try {
+        cached.conn = await cached.promise;
+    } catch (error) {
+        cached.promise = null;
+        throw error;
+    }
     return cached.conn;
 }
